@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>English Practice – 7 Topics</title>
+<style>
+  body{font-family:Arial,"Noto Sans TC","Noto Sans CJK",sans-serif;background:#f9fafb;color:#111;margin:0}
+  header{background:#1d4ed8;color:#fff;padding:12px 16px}
+  h1{margin:0;font-size:20px}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;background:#eef2ff}
+  label{font-size:14px}
+  select,input[type=range],input[type=text],button{font-size:14px}
+  input[type=text]{padding:6px 8px;min-width:160px}
+  button{cursor:pointer;border:1px solid #d1d5db;background:#fff;padding:6px 10px;border-radius:8px}
+  .primary{background:#111;color:#fff;border-color:#111}
+  .tabs{display:flex;gap:8px;padding:10px}
+  .tab-btn{border:1px solid #d1d5db;background:#fff;border-radius:999px;padding:6px 12px}
+  .tab-btn.active{background:#111;color:#fff;border-color:#111}
+  .hint{font-size:12px;color:#6b7280;padding:6px 10px}
+  table{width:100%;border-collapse:collapse;background:#fff;margin:10px 0}
+  th,td{border:1px solid #e5e7eb;padding:8px;vertical-align:top}
+  th{background:#f3f4f6}
+  .word-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid #e5e7eb;background:#f8fafc;padding:4px 6px;margin:3px;border-radius:999px}
+  .word-voice{border:none;background:#e5e7eb;padding:2px 8px;border-radius:999px;cursor:pointer}
+  .speak-btn{background:#111;color:#fff;border-color:#111}
+  .muted{color:#6b7280;font-size:13px}
+  .wrap{padding:10px}
+  .toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #d1d5db;background:#fff}
+  .empty{padding:16px;color:#6b7280}
+  .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;padding:0 6px;border:1px solid #e5e7eb;border-bottom-width:2px;border-radius:6px;background:#fff}
+  .warn{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;padding:8px 10px;border-radius:8px;margin:10px}
+</style>
+</head>
+<body>
+<header><h1>English Practice – 7 大主題</h1></header>
+
+<div class="bar">
+  <label>Topic：
+    <select id="topicSelect"></select>
+  </label>
+  <label>Voice：
+    <select id="voiceSelect"></select>
+  </label>
+  <span id="currentVoiceBadge" class="badge">目前語音：—</span>
+  <label>Rate：
+    <input id="rateCtrl" type="range" min="0.6" max="1.4" step="0.05" value="1">
+  </label>
+  <label>Pitch：
+    <input id="pitchCtrl" type="range" min="0.6" max="1.4" step="0.05" value="1">
+  </label>
+  <input id="search" type="text" placeholder="🔍 Search in current tab...">
+  <button id="refreshVoicesBtn">🔄 重新載入語音</button>
+  <button id="testBtn" class="primary">🔊 測試語音</button>
+  <button id="stopBtn">■ 停止</button>
+</div>
+<div id="tips" class="hint">若沒聲音：先點「🔊 測試語音」或「🔄 重新載入語音」。</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="common">常見問句</button>
+  <button class="tab-btn" data-tab="dialog">對話</button>
+  <button class="tab-btn" data-tab="words">必備單字</button>
+</div>
+
+<div class="wrap" id="content"></div>
+
+<script>
+/* —— 全域錯誤攔截：直接在頁面顯示錯誤 —— */
+window.onerror = function (msg, src, line, col, err) {
+  var tips = document.getElementById('tips');
+  var box = document.createElement('div');
+  box.className = 'warn';
+  box.textContent = '腳本錯誤：' + msg + (line?(' @'+line+':'+(col||0)):'');
+  tips && tips.after(box);
+};
+
+/* ================= DATA（7 主題） ================= */
+var DATA = {
+  lodging: {
+    title: "住宿英文 (Hotel/Accommodation)",
+    common: [
+      { sentence:"I’d like to make a reservation for one night on the 3rd of June.", zh:"我要預訂六月三號一晚的房間。", tokens:[["I’d like to","我想要"],["make a reservation","預訂"],["for one night","一晚"],["on the 3rd of June","在六月三號"]] },
+      { sentence:"I’d like to reserve a single room.", zh:"我想要預訂一間單人房。", tokens:[["I’d like to","我想要"],["reserve","預訂"],["a single room","單人房"]] },
+      { sentence:"Could I book a double room for 3 days from (date) to (date)?", zh:"我要訂一間雙人房從＿月＿日到＿月＿日。", tokens:[["Could I","我可以"],["book","訂"],["a double room","雙人房"],["for 3 days","三天"],["from","從"],["to","到"]] },
+      { sentence:"Is breakfast included in the room price?", zh:"請問房價有包含早餐嗎？", tokens:[["Is","是否"],["breakfast","早餐"],["included","包含"],["in the room price","在房價內"]] },
+      { sentence:"Sorry, I didn’t make a reservation. Do you have any rooms available for tonight?", zh:"不好意思我沒有先訂房，今晚還有空房嗎？", tokens:[["Sorry","不好意思"],["I didn’t make a reservation","我沒有訂房"],["rooms available","有空房"],["for tonight","今晚"]] },
+      { sentence:"When is check-in time / check-out time?", zh:"進房／退房的時間是什麼時候？", tokens:[["check-in time","進房時間"],["check-out time","退房時間"]] },
+      { sentence:"Does the room have Internet access?", zh:"房間裡有網路嗎？", tokens:[["the room","房間"],["have","有"],["Internet access","網路連線"]] },
+      { sentence:"What time can I have breakfast?", zh:"早餐幾點開始供應？", tokens:[["What time","幾點"],["have breakfast","用早餐"]] },
+      { sentence:"Could you call a taxi for me?", zh:"可以幫我叫計程車嗎？", tokens:[["Could you","可以麻煩你"],["call a taxi","叫計程車"],["for me","幫我"]] },
+      { sentence:"I’d like to check out and finalize my bill.", zh:"我要退房和結帳。", tokens:[["check out","退房"],["finalize my bill","結清帳單"]] }
+    ],
+    dialog: [
+      { sentence:"Hello, I have a reservation under Chen.", zh:"你好，我以陳這個名字有訂房。", tokens:[["reservation","訂房"],["under","以…名義"]] },
+      { sentence:"May I see your passport, please?", zh:"可以看一下您的護照嗎？", tokens:[["May I","我可以"],["passport","護照"],["please","請"]] },
+      { sentence:"Here you are. Also, is breakfast included?", zh:"給你。另外，房價有包含早餐嗎？", tokens:[["Here you are","給你"],["is … included","有包含嗎"]] },
+      { sentence:"Yes, it is. Breakfast is served from 7 to 10 a.m.", zh:"有的。早餐供應時間是早上七點到十點。", tokens:[["is served","供應"],["from … to …","從…到…"]] },
+      { sentence:"Great, thank you.", zh:"太好了，謝謝。", tokens:[["Great","太好了"],["thank you","謝謝"]] }
+    ],
+    words: [
+      { sentence:"double room", zh:"雙人房（1張床）", tokens:[["double","雙人"],["room","房間"]] },
+      { sentence:"twin room", zh:"雙床房（2張單人床）", tokens:[["twin","雙床"],["room","房間"]] },
+      { sentence:"triple room", zh:"三人房", tokens:[["triple","三人"],["room","房間"]] },
+      { sentence:"family room", zh:"家庭房（四人）", tokens:[["family","家庭"],["room","房間"]] },
+      { sentence:"check-in / check-out", zh:"辦理入住／退房", tokens:[["check-in","入住"],["check-out","退房"]] },
+      { sentence:"reservation", zh:"預訂", tokens:[["reservation","預訂"]] }
+    ]
+  },
+
+  airport: {
+    title: "機場英文 (Airport)",
+    common: [
+      { sentence:"Would you like to book your seats now?", zh:"你要訂機位嗎?", tokens:[["Would you like to","你想要"],["book","預訂"],["seats","座位"],["now","現在"]] },
+      { sentence:"Would you like a window seat or an aisle seat?", zh:"您想要靠窗邊還是靠走道的位置?", tokens:[["window seat","靠窗座位"],["aisle seat","走道座位"]] },
+      { sentence:"What is your ticket number?", zh:"您的機票號碼是?", tokens:[["ticket number","機票號碼"]] },
+      { sentence:"What gate does the flight board at?", zh:"這班飛機要到哪一個登機門登機？", tokens:[["gate","登機門"],["board","登機"]] },
+      { sentence:"Excuse me, where is Gate __?", zh:"請問__號登機門在哪裡？", tokens:[["Excuse me","不好意思"],["Gate","登機門"]] },
+      { sentence:"When does the flight begin boarding?", zh:"這班飛機幾點登機？", tokens:[["begin boarding","開始登機"]] },
+      { sentence:"Excuse me, where is the transfer desk / lounge?", zh:"請問轉機櫃檯 / 休息室在哪裡？", tokens:[["transfer desk","轉機櫃檯"],["lounge","休息室"]] }
+    ],
+    dialog: [
+      { sentence:"I would like to confirm my flight.", zh:"我想確認我的班機。", tokens:[["confirm","確認"],["flight","航班"]] },
+      { sentence:"Can I get your ticket number?", zh:"請告訴我您的機票號碼。", tokens:[["ticket number","機票號碼"]] },
+      { sentence:"You are scheduled to depart on June 15th at 1:00 p.m. Is this correct?", zh:"您預定在6月15號下午一點起飛，對嗎？", tokens:[["scheduled to depart","預定起飛"]] },
+      { sentence:"Yes, it is.", zh:"是的。", tokens:[["Yes","是的"]] },
+      { sentence:"Your tickets have been confirmed. Please arrive 3 hours before departure.", zh:"已確認。請在起飛前三小時抵達。", tokens:[["confirmed","已確認"],["departure","起飛"]] }
+    ],
+    words: [
+      { sentence:"check-in", zh:"辦理登機", tokens:[["check","檢查"],["in","進入"]] },
+      { sentence:"delayed", zh:"延誤", tokens:[["delayed","延誤"]] },
+      { sentence:"boarding", zh:"登機", tokens:[["boarding","登機"]] },
+      { sentence:"gate", zh:"登機門", tokens:[["gate","登機門"]] },
+      { sentence:"departure time", zh:"起飛時間", tokens:[["departure","出發"],["time","時間"]] },
+      { sentence:"terminal", zh:"航廈", tokens:[["terminal","航廈"]] }
+    ]
+  },
+
+  transport: {
+    title: "交通英文 (Transportation)",
+    common: [
+      { sentence:"Could you tell me where I am now?", zh:"可以告訴我這是哪裡嗎?", tokens:[["where I am","我在哪裡"],["now","現在"]] },
+      { sentence:"Excuse me. How do I get to the railway station, please?", zh:"想請問如何到火車站？", tokens:[["How do I get to","怎麼去"],["railway station","火車站"]] },
+      { sentence:"Excuse me. Where’s the nearest restaurant, please?", zh:"最近的餐廳在哪裡？", tokens:[["nearest","最近的"],["restaurant","餐廳"]] },
+      { sentence:"Excuse me. I’m looking for the Number 8 bus stop.", zh:"想請問八號車站牌在哪裡?", tokens:[["looking for","正在找"],["bus stop","公車站"]] },
+      { sentence:"It’s easier if I can show you on the map.", zh:"你可以在地圖上指給我看嗎？", tokens:[["show you","給你看"],["on the map","在地圖上"]] },
+      { sentence:"How long does it take to go to ____?", zh:"到＿＿需要多長時間？", tokens:[["How long","多久"],["does it take","要花多久"]] },
+      { sentence:"Would it be better for me to take a taxi/bus?", zh:"搭計程車／公車會比較好嗎？", tokens:[["take a taxi/bus","搭計程車／公車"]] },
+      { sentence:"It’s about five minutes from here.", zh:"從這裡大約五分鐘。", tokens:[["about","大約"],["from here","從這裡"]] },
+      { sentence:"It’s about a ten-minute walk.", zh:"大約走十分鐘。", tokens:[["ten-minute walk","十分鐘路程"]] },
+      { sentence:"Where is the bus stop / taxi stand?", zh:"公車站／計程車招呼站在哪裡？", tokens:[["bus stop","公車站"],["taxi stand","計程車招呼站"]] },
+      { sentence:"How much does it cost to the train station by taxi?", zh:"乘計程車到車站需要多少錢？", tokens:[["How much","多少"],["cost","費用"]] },
+      { sentence:"Take me to this address, please.", zh:"請載我去這個地址。", tokens:[["Take me to","載我去"],["address","地址"]] },
+      { sentence:"Please stop right here.", zh:"請在這裡停車。", tokens:[["stop","停"],["right here","就在這裡"]] },
+      { sentence:"Can I pay the fare by credit card?", zh:"我可以用信用卡付車資嗎？", tokens:[["pay the fare","付車資"],["credit card","信用卡"]] }
+    ],
+    dialog: [
+      { sentence:"Excuse me. I’m looking for the post office.", zh:"不好意思，我在找郵局。", tokens:[["post office","郵局"]] },
+      { sentence:"Go straight, then turn left at the crossroads.", zh:"直走，然後在十字路口左轉。", tokens:[["go straight","直走"],["turn left","左轉"],["crossroads","十字路口"]] },
+      { sentence:"You can take Bus 8. Get off at the second stop.", zh:"你可以搭 8 號公車，在第二站下車。", tokens:[["take Bus 8","搭 8 號公車"],["get off","下車"],["second stop","第二站"]] }
+    ],
+    words: [
+      { sentence:"fare", zh:"車資", tokens:[["fare","車資"]] },
+      { sentence:"one-way / round trip", zh:"單程／來回", tokens:[["one-way","單程"],["round trip","來回"]] },
+      { sentence:"platform", zh:"月台", tokens:[["platform","月台"]] },
+      { sentence:"timetable", zh:"時刻表", tokens:[["timetable","時刻表"]] }
+    ]
+  },
+
+  dining: {
+    title: "餐廳點餐 (Dining)",
+    common: [
+      { sentence:"A table for two, please.", zh:"請給我們兩人座。", tokens:[["table","桌位"],["for two","兩人"]] },
+      { sentence:"Could we see the menu?", zh:"可以看一下菜單嗎？", tokens:[["see the menu","看菜單"]] },
+      { sentence:"I have a food allergy to peanuts.", zh:"我對花生過敏。", tokens:[["food allergy","食物過敏"],["peanuts","花生"]] }
+    ],
+    dialog: [
+      { sentence:"Are you ready to order?", zh:"需要點餐了嗎？", tokens:[["ready to order","準備點餐"]] },
+      { sentence:"Yes, I’ll have the grilled chicken.", zh:"要，我要烤雞。", tokens:[["I’ll have","我要點"],["grilled chicken","烤雞"]] }
+    ],
+    words: [
+      { sentence:"appetizer / main course / dessert", zh:"前菜／主菜／甜點", tokens:[["appetizer","前菜"],["main course","主菜"],["dessert","甜點"]] }
+    ]
+  },
+
+  shopping: {
+    title: "購物 (Shopping)",
+    common: [
+      { sentence:"How much is this?", zh:"這個多少錢？", tokens:[["How much","多少錢"],["this","這個"]] },
+      { sentence:"Do you have this in a larger size?", zh:"有更大的尺寸嗎？", tokens:[["larger size","較大尺寸"]] }
+    ],
+    dialog: [
+      { sentence:"Can I try it on?", zh:"我可以試穿嗎？", tokens:[["try it on","試穿"]] },
+      { sentence:"It’s a bit too small for me.", zh:"對我來說有點太小。", tokens:[["too small","太小"]] }
+    ],
+    words: [
+      { sentence:"fitting room", zh:"試衣間", tokens:[["fitting room","試衣間"]] },
+      { sentence:"receipt", zh:"收據", tokens:[["receipt","收據"]] }
+    ]
+  },
+
+  emergency: {
+    title: "緊急求助 (Emergency)",
+    common: [
+      { sentence:"Please help! I need a doctor.", zh:"請幫忙！我需要醫生。", tokens:[["I need a doctor","我需要醫生"]] },
+      { sentence:"Call the police, please.", zh:"請幫我報警。", tokens:[["police","警察"]] }
+    ],
+    dialog: [
+      { sentence:"What happened?", zh:"發生什麼事？", tokens:[["happened","發生"]] },
+      { sentence:"I lost my passport.", zh:"我的護照不見了。", tokens:[["lost","不見"],["passport","護照"]] }
+    ],
+    words: [
+      { sentence:"ambulance", zh:"救護車", tokens:[["ambulance","救護車"]] },
+      { sentence:"emergency room (ER)", zh:"急診室", tokens:[["emergency room","急診室"]] }
+    ]
+  },
+
+  sightseeing: {
+    title: "觀光與問路 (Sightseeing)",
+    common: [
+      { sentence:"Is there a guided tour available?", zh:"有導覽行程嗎？", tokens:[["guided tour","導覽"]] },
+      { sentence:"What are the opening hours?", zh:"開放時間是？", tokens:[["opening hours","開放時間"]] }
+    ],
+    dialog: [
+      { sentence:"How can I get to the museum?", zh:"要怎麼去博物館？", tokens:[["get to","前往"],["museum","博物館"]] },
+      { sentence:"Take the metro and get off at Central Station.", zh:"搭地鐵在中央車站下車。", tokens:[["metro","地鐵"],["get off","下車"]] }
+    ],
+    words: [
+      { sentence:"audio guide", zh:"語音導覽", tokens:[["audio guide","語音導覽"]] },
+      { sentence:"souvenir", zh:"紀念品", tokens:[["souvenir","紀念品"]] }
+    ]
+  }
+};
+
+/* ================== 語音合成（Web Speech API） ================== */
+var synth = window.speechSynthesis || null;
+var voices = [];
+
+function scoreVoice(v) {
+  var name = (v.name || '').toLowerCase();
+  var lang = (v.lang || '').toLowerCase();
+  // 語系優先序
+  var order = ['zh-tw','en-us','en-gb','en','zh'];
+  var langScore = -100, i;
+  for (i=0;i<order.length;i++){
+    var p = order[i];
+    if (lang === p) { langScore = 100 - i*2; break; }
+    if (lang.indexOf(p+'-')===0) { langScore = 80 - i*2; break; }
+    if (p.length===2 && lang.indexOf(p+'-')===0) { langScore = 70 - i*2; break; }
+  }
+  // 供應商
+  var vendorScore = name.indexOf('google')>-1 ? 30
+                    : name.indexOf('microsoft')>-1 ? 20
+                    : (name.indexOf('siri')>-1 || name.indexOf('ios')>-1 || name.indexOf('apple')>-1) ? 10 : 0;
+  var localeScore = (name.indexOf('taiwan')>-1 || name.indexOf('zh-tw')>-1 || lang.indexOf('zh-tw')>-1) ? 5 : 0;
+  return -(langScore + vendorScore + localeScore);
+}
+
+function updateCurrentVoiceBadge() {
+  var badge = document.getElementById('currentVoiceBadge');
+  var sel = document.getElementById('voiceSelect');
+  if (!voices.length || !sel.value) { badge.textContent = '目前語音：—'; return; }
+  var i, v=null;
+  for (i=0;i<voices.length;i++){ if (voices[i].voiceURI===sel.value){ v=voices[i]; break; } }
+  badge.textContent = v ? ('目前語音：'+v.name+' ('+v.lang+')') : '目前語音：—';
+}
+
+function populateVoices() {
+  if (!synth) { showWarn('此瀏覽器不支援語音（Web Speech API）。'); return; }
+  voices = synth.getVoices();
+  var select = document.getElementById('voiceSelect');
+  select.innerHTML = '';
+  voices.sort(function(a,b){ return scoreVoice(a)-scoreVoice(b); });
+  var savedVoice = localStorage.getItem('ep_voiceURI');
+  var found = false;
+  for (var i=0;i<voices.length;i++){
+    var v = voices[i];
+    var opt = document.createElement('option');
+    opt.value = v.voiceURI;
+    opt.textContent = v.name + ' (' + v.lang + ')';
+    if (savedVoice && v.voiceURI===savedVoice){ opt.selected = true; found = true; }
+    select.appendChild(opt);
+  }
+  if (!voices.length){
+    var opt2 = document.createElement('option');
+    opt2.value = '';
+    opt2.textContent = '（尚未載入語音，請按：重新載入語音）';
+    select.appendChild(opt2);
+  }
+  if (!found && select.options.length){
+    select.selectedIndex = 0;
+    localStorage.setItem('ep_voiceURI', select.value);
+  }
+  updateCurrentVoiceBadge();
+}
+
+function speak(text, langHint){
+  if (!text) return;
+  if (!langHint) langHint = 'en-US';
+  try { synth && synth.cancel(); } catch(e){}
+  var utter = new SpeechSynthesisUtterance(text);
+  var rate = parseFloat(document.getElementById('rateCtrl').value || '1');
+  var pitch = parseFloat(document.getElementById('pitchCtrl').value || '1');
+  utter.rate = rate; utter.pitch = pitch;
+  var sel = document.getElementById('voiceSelect');
+  var voiceURI = sel.value;
+  var i, matched=null;
+  for (i=0;i<voices.length;i++){ if (voices[i].voiceURI===voiceURI){ matched=voices[i]; break; } }
+  if (matched){ utter.voice = matched; utter.lang = matched.lang || langHint; } else { utter.lang = langHint; }
+  synth && synth.speak(utter);
+}
+
+/* ================== UI 狀態保存 ================== */
+['rateCtrl','pitchCtrl','voiceSelect','topicSelect'].forEach(function(id){
+  var el = document.getElementById(id);
+  var key = 'ep_'+id;
+  var saved = localStorage.getItem(key);
+  if (saved!==null) el.value = saved;
+  el.addEventListener('change', function(){
+    localStorage.setItem(key, el.value);
+    if (id==='voiceSelect'){
+      localStorage.setItem('ep_voiceURI', el.value);
+      updateCurrentVoiceBadge();
+    }
+  });
+});
+
+/* ================== 主題/分頁/搜尋 渲染 ================== */
+var topicSelect = document.getElementById('topicSelect');
+var contentEl = document.getElementById('content');
+var tabBtns = (function(){ return Array.prototype.slice.call(document.querySelectorAll('.tab-btn')); })();
+var searchInput = document.getElementById('search');
+
+// 填入主題選單
+for (var k in DATA){
+  if (!DATA.hasOwnProperty(k)) continue;
+  var opt = document.createElement('option');
+  opt.value = k; opt.textContent = DATA[k].title;
+  topicSelect.appendChild(opt);
+}
+var savedTopic = localStorage.getItem('ep_topicSelect');
+if (savedTopic && DATA[savedTopic]) topicSelect.value = savedTopic;
+
+// 目前分頁（不使用 ?.dataset 以避免相容性問題）
+var currentTab = 'common';
+for (var i=0;i<tabBtns.length;i++){
+  if (tabBtns[i].className.indexOf('active')>-1){
+    currentTab = tabBtns[i].getAttribute('data-tab') || 'common';
+    break;
+  }
+}
+
+for (var i2=0;i2<tabBtns.length;i2++){
+  (function(btn){
+    btn.addEventListener('click', function(){
+      for (var j=0;j<tabBtns.length;j++){ tabBtns[j].classList.remove('active'); }
+      btn.classList.add('active');
+      currentTab = btn.getAttribute('data-tab');
+      render();
+    });
+  })(tabBtns[i2]);
+}
+
+topicSelect.addEventListener('change', function(){
+  localStorage.setItem('ep_topicSelect', topicSelect.value);
+  render();
+});
+searchInput.addEventListener('input', function(){ render(); });
+
+// 建立單字 chip
+function chip(wordPair){
+  var en = wordPair[0], zh = wordPair[1];
+  var div = document.createElement('span'); div.className='word-chip';
+  var enSpan = document.createElement('span'); enSpan.textContent = en;
+  var zhSpan = document.createElement('span'); zhSpan.className='muted'; zhSpan.textContent = zh ? '('+zh+')' : '';
+  var btn = document.createElement('button'); btn.className='word-voice'; btn.textContent='🔊'; btn.title='Play';
+  btn.addEventListener('click', function(e){ e.stopPropagation(); speak(en, 'en-US'); });
+  div.appendChild(enSpan); if (zh){ div.appendChild(zhSpan); } div.appendChild(btn);
+  return div;
+}
+
+function emptyNode(){
+  var div = document.createElement('div'); div.className='empty';
+  div.innerHTML = '找不到結果。試試改用其他關鍵字，或按 <span class="kbd">Esc</span> 清除搜尋。';
+  return div;
+}
+function escapeHTML(s){
+  return (s||'').replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
+}
+
+function render(){
+  var key = topicSelect.value || Object.keys(DATA)[0];
+  var topic = DATA[key]; if (!topic) return;
+  var q = (searchInput.value || '').toLowerCase();
+  var list = topic[currentTab] || [];
+  var filtered = [];
+  if (!q){ filtered = list; }
+  else {
+    for (var i=0;i<list.length;i++){
+      var item = list[i];
+      var hay = (item.sentence + ' ' + (item.zh||'') + ' ' + (item.tokens||[]).join(' ')).toLowerCase();
+      if (hay.indexOf(q)>-1) filtered.push(item);
+    }
+  }
+
+  if (currentTab==='words'){
+    var wrap = document.createElement('div');
+    var toolbar = document.createElement('div'); toolbar.className='toolbar';
+    var count = document.createElement('span'); count.className='badge'; count.textContent='詞彙數：'+filtered.length;
+    toolbar.appendChild(count); wrap.appendChild(toolbar);
+    if (!filtered.length){ wrap.appendChild(emptyNode()); contentEl.innerHTML=''; contentEl.appendChild(wrap); return; }
+    var box = document.createElement('div');
+    for (var i3=0;i3<filtered.length;i3++){
+      var it = filtered[i3];
+      var row = document.createElement('div'); row.style.margin='6px 0';
+      var en = document.createElement('div'); en.innerHTML = '<b>'+escapeHTML(it.sentence)+'</b>';
+      var zh = document.createElement('div'); zh.className='muted'; zh.textContent = it.zh || '';
+      var tk = document.createElement('div');
+      var tokens = it.tokens || [];
+      for (var t=0;t<tokens.length;t++){ tk.appendChild(chip(tokens[t])); }
+      var btn = document.createElement('button'); btn.className='speak-btn'; btn.textContent='🔊 朗讀';
+      (function(text){ btn.addEventListener('click', function(){ speak(text, 'en-US'); }); })(it.sentence);
+      row.appendChild(en); row.appendChild(zh); row.appendChild(tk); row.appendChild(btn);
+      row.style.border='1px solid #e5e7eb'; row.style.borderRadius='8px'; row.style.padding='8px'; row.style.background='#fff';
+      box.appendChild(row);
+    }
+    contentEl.innerHTML=''; wrap.appendChild(box); contentEl.appendChild(wrap); return;
+  }
+
+  var table = document.createElement('table');
+  var thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th style="width:38%">English</th><th style="width:28%">中文</th><th>詞彙拆解</th><th style="width:90px">操作</th></tr>';
+  var tbody = document.createElement('tbody');
+
+  if (!filtered.length){
+    var tr = document.createElement('tr'); var td = document.createElement('td');
+    td.colSpan=4; td.appendChild(emptyNode()); tr.appendChild(td); tbody.appendChild(tr);
+  } else {
+    for (var i4=0;i4<filtered.length;i4++){
+      var item2 = filtered[i4];
+      var tr2 = document.createElement('tr');
+      var tdEn = document.createElement('td'); tdEn.textContent = item2.sentence;
+      var tdZh = document.createElement('td'); tdZh.textContent = item2.zh || '';
+      var tdTk = document.createElement('td');
+      var toks = item2.tokens || [];
+      for (var z=0; z<toks.length; z++){ tdTk.appendChild(chip(toks[z])); }
+      var tdOp = document.createElement('td');
+      var btnEn = document.createElement('button'); btnEn.className='speak-btn'; btnEn.textContent='🔊'; btnEn.title='朗讀英文';
+      (function(text){ btnEn.addEventListener('click', function(){ speak(text, 'en-US'); }); })(item2.sentence);
+      var btnZh = document.createElement('button'); btnZh.textContent='🇹🇼'; btnZh.title='朗讀中文';
+      (function(text){ btnZh.addEventListener('click', function(){ speak(text || '', 'zh-TW'); }); })(item2.zh);
+      tdOp.appendChild(btnEn); tdOp.appendChild(document.createTextNode(' ')); tdOp.appendChild(btnZh);
+      tr2.appendChild(tdEn); tr2.appendChild(tdZh); tr2.appendChild(tdTk); tr2.appendChild(tdOp);
+      tbody.appendChild(tr2);
+    }
+  }
+  table.appendChild(thead); table.appendChild(tbody);
+  contentEl.innerHTML=''; contentEl.appendChild(table);
+}
+
+function showWarn(msg){
+  var tips = document.getElementById('tips');
+  var box = document.createElement('div'); box.className='warn'; box.textContent=msg;
+  tips && tips.after(box);
+}
+
+// 初始化
+render();
+
+/* ============ 控制列按鈕 ============ */
+document.getElementById('refreshVoicesBtn').addEventListener('click', function(){
+  try { synth && synth.cancel(); } catch(e){}
+  populateVoices();
+});
+document.getElementById('testBtn').addEventListener('click', function(){
+  if (!synth){ showWarn('此瀏覽器不支援語音。'); return; }
+  speak('Hello! This is a voice test. 你好，這是測試語音。', 'en-US');
+});
+document.getElementById('stopBtn').addEventListener('click', function(){ synth && synth.cancel(); });
+
+// Esc 清搜尋
+window.addEventListener('keydown', function(e){
+  if (e.key==='Escape'){ searchInput.value=''; render(); }
+});
+
+// 嘗試載入語音（部分瀏覽器需 onvoiceschanged）
+populateVoices();
+if (window.speechSynthesis){
+  window.speechSynthesis.onvoiceschanged = function(){ populateVoices(); };
+}
+</script>
+</body>
+</html>
